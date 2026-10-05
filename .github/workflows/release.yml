@@ -1,0 +1,81 @@
+name: Build and Release
+
+# Only runs when started by hand from the Actions tab (or `gh workflow run`).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 1.2.0. Leave blank to use ModuleVersion from DeClipPlugin.cs."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  PLUGIN_NAME: CS2-DeClip
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          CODE_VERSION=$(grep -oP 'ModuleVersion\s*=>\s*"\K[^"]+' DeClipPlugin.cs)
+          VERSION="${INPUT_VERSION#v}"
+          VERSION="${VERSION:-$CODE_VERSION}"
+
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'${VERSION}' is not a version like 1.2.0"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" > /dev/null; then
+            echo "::error::v${VERSION} has already been released"
+            exit 1
+          fi
+          if [[ "${VERSION}" != "${CODE_VERSION}" ]]; then
+            echo "::warning::Releasing ${VERSION} but DeClipPlugin.cs says ModuleVersion ${CODE_VERSION}"
+          fi
+
+          echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore -p:Version="${{ steps.version.outputs.value }}"
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          STAGE="package/addons/counterstrikesharp/plugins/${PLUGIN_NAME}"
+          mkdir -p "${STAGE}"
+          cp "bin/Release/net10.0/${PLUGIN_NAME}.dll" "${STAGE}/"
+          cp README.md LICENSE "${STAGE}/"
+          (cd package && zip -r "../${PLUGIN_NAME}-${{ steps.version.outputs.value }}.zip" .)
+          ls -la "${PLUGIN_NAME}-${{ steps.version.outputs.value }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.value }}
+          path: ${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.value }}.zip
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.value }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ env.PLUGIN_NAME }} v${{ steps.version.outputs.value }}
+          generate_release_notes: true
+          files: ${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.value }}.zip
