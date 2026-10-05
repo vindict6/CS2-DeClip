@@ -28,7 +28,8 @@ don't get snapped back.
 - Players can walk, jump and fall through `toolsplayerclip` / `toolsclip` brushes.
 - Removes `func_clip_vphysics` entities too, and removes them again after every round restart since the map spawns them
   back.
-- Lasts until the map changes. Clips come back on the next map, or if the plugin gets unloaded.
+- Toggle it back off whenever you want with `!declip` or `!reclip`. Otherwise it lasts until the map changes or the
+  plugin gets unloaded.
 - Works on both Windows and Linux servers.
 
 ## Requirements
@@ -47,10 +48,15 @@ There's no config file.
 
 ## Usage
 
-Type `!declip` or `/declip` in chat, or run `css_declip` from the server console. You need the `@css/generic` flag.
+Type `!declip` in chat, or run `css_declip` from the server console. You need the `@css/generic` flag.
 
-Everyone gets a chat message saying who removed the clips. There's no command to put them back mid-map. Change the map
-or run `css_plugins reload CS2-DeClip` and they're back.
+To put the clips back, type `!declip` again or use `!reclip`. They also come back on their own when the map changes.
+
+It's quiet on purpose. When an admin types `!declip` or `!reclip`, the chat line is hidden from everyone else and only
+that admin gets the confirmation. Nothing is announced to the server.
+
+One catch with putting clips back: the `func_clip_vphysics` entities that got deleted can't be recreated on the spot.
+The map spawns them again on the next round restart.
 
 ## Good to know
 
